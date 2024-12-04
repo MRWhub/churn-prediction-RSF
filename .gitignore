@@ -1,0 +1,10 @@
+/ml_churn_model
+/__pycache__
+/config/__pycache__
+/pipeline/__pycache__
+.env
+*.txt
+*.csv
+*.png
+*.xlsx
+*.pk
