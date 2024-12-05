@@ -23,10 +23,12 @@ def gerar_previsoes():
     print(df.shape)
     # Seleção das features para o modelo
     features = [
-        'has_club', 'has_ifood', 'is_multistore_related', 'has_fiscal', 'only_delivery',
-        'mrr', 'average_table_session', 'sessions_count', 'total_users',
-        'fat_anti_penult_sem', 'fat_penult_sem', 'fat_ult_sem', 'variance_x',
-        'std_dev_x', 'comandas_anti_penul_sem', 'comandas_penul_sem', 'comandas_ult_sem'
+ 'has_club', 'has_ifood',
+       'is_multistore_related', 'has_fiscal', 'only_delivery',
+       'sessions_count', 'mrr', 'total_users', 'soma_ult_sem', 'soma_sem_anterior',
+       'soma_2_sem_anteriores', 'variance_x', 'std_dev_x', 'comandas_ult_sem',
+       'comandas_sem_anterior', 'comandas_2_sem_anteriores', 'variance_y',
+       'std_dev_y', 'average_table_session'
     ]
     X = df[features]
 
@@ -94,7 +96,7 @@ def generate_graphs(df):
         
         # Mostra o gráfico
         #plt.show()
-        plt.savefig(f'Restaurante {row[0]}.png')
+        plt.savefig(f'Restaurante {row[1]}.png')
         plt.close()
 
 

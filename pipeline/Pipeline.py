@@ -114,6 +114,7 @@ ORDER BY survival_days desc;
 """
 
         data_frame = self.extract.execute_query_table(query)
+        
         return data_frame
 
     def get_restaurant_users(self):
@@ -129,163 +130,55 @@ group by restaurant_id
         return data_frame
     
 
-    def get_faturamento_cancelados(self):
+    def get_faturamento(self):
 
         query = """
-        WITH fat1 AS (
+WITH ultima_data AS (
     SELECT 
-        T.restaurant_id,
-        SUM(B.total_service_price) AS fat_ult_sem
+        restaurant_id,
+        MAX(created_at) AS last_created_at
     FROM 
-        individual_bills B
-    INNER JOIN 
-        table_sessions T ON T.id = B.session_id
-    INNER JOIN 
-        restaurants R ON R.id = T.restaurant_id
-    WHERE 
-        R.deleted_at IS NOT NULL AND
-        B.created_at BETWEEN R.deleted_at - INTERVAL '7 days' AND R.deleted_at
+        table_sessions
     GROUP BY 
-        T.restaurant_id
-),
-fat2 AS (
-    SELECT 
-        T.restaurant_id,
-        SUM(B.total_service_price) AS fat_penul_sem
-    FROM 
-        individual_bills B
-    INNER JOIN 
-        table_sessions T ON T.id = B.session_id
-    INNER JOIN 
-        restaurants R ON R.id = T.restaurant_id
-    WHERE 
-        R.deleted_at IS NOT NULL AND
-        B.created_at BETWEEN R.deleted_at - INTERVAL '14 days' AND R.deleted_at - INTERVAL '7 days'
-    GROUP BY 
-        T.restaurant_id
-),
-fat3 AS (
-    SELECT 
-        T.restaurant_id,
-        SUM(B.total_service_price) AS fat_ant_penul_sem
-    FROM 
-        individual_bills B
-    INNER JOIN 
-        table_sessions T ON T.id = B.session_id
-    INNER JOIN 
-        restaurants R ON R.id = T.restaurant_id
-    WHERE 
-        R.deleted_at IS NOT NULL AND
-        B.created_at BETWEEN R.deleted_at - INTERVAL '21 days' AND R.deleted_at - INTERVAL '14 days'
-    GROUP BY 
-        T.restaurant_id
+        restaurant_id
 )
 SELECT 
-    COALESCE(fat3.restaurant_id, fat2.restaurant_id, fat1.restaurant_id) AS restaurant_id,
-    COALESCE(fat3.fat_ant_penul_sem, 0) AS fat_ant_penul_sem,
-    COALESCE(fat2.fat_penul_sem, 0) AS fat_penul_sem,
-    COALESCE(fat1.fat_ult_sem, 0) AS fat_ult_sem
+    T.restaurant_id,
+    SUM(CASE 
+              WHEN T.created_at BETWEEN U.last_created_at - INTERVAL '3 hours' - INTERVAL '7 days'
+                                  AND U.last_created_at - INTERVAL '3 hours' 
+              THEN T.total_service_price
+         END) AS soma_ult_sem,
+    SUM(CASE 
+              WHEN T.created_at BETWEEN U.last_created_at - INTERVAL '3 hours' - INTERVAL '14 days'
+                                  AND U.last_created_at - INTERVAL '3 hours' - INTERVAL '7 days' 
+              THEN T.total_service_price
+         END) AS soma_sem_anterior,
+    SUM(CASE 
+              WHEN T.created_at BETWEEN U.last_created_at - INTERVAL '3 hours' - INTERVAL '21 days'
+                                  AND U.last_created_at - INTERVAL '3 hours' - INTERVAL '14 days' 
+              THEN T.total_service_price
+         END) AS soma_2_sem_anteriores
 FROM 
-    fat1
-FULL OUTER JOIN 
-    fat2 ON fat1.restaurant_id = fat2.restaurant_id
-FULL OUTER JOIN 
-    fat3 ON COALESCE(fat1.restaurant_id, fat2.restaurant_id) = fat3.restaurant_id;
+    table_sessions T
+INNER JOIN
+    restaurants R
+    ON R.id = T.restaurant_id
+INNER JOIN
+    ultima_data U
+    ON U.restaurant_id = T.restaurant_id
+WHERE 
 
-                """
-        
-        data_frame = self.extract.execute_query_table(query) 
-
-        def calculate_metrics(row):
-            faturamentos = [row['fat_ant_penul_sem'], row['fat_penul_sem'], row['fat_ult_sem']]
-            variance = np.var(faturamentos, ddof=0)  # Variância populacional
-            std_dev = np.sqrt(variance)  # Desvio padrão
-            return pd.Series({'variance': variance, 'std_dev': std_dev})
-    
-    # Aplicar cálculo para cada linha
-        metrics = data_frame.apply(calculate_metrics, axis=1)
-        data_frame = pd.concat([data_frame, metrics], axis=1)
-        
-        return data_frame
-
-
-    def get_faturamento_vigentes(self):
-
-        query = """
-WITH fat1 AS (
-    SELECT 
-        T.restaurant_id,
-        SUM(B.total_service_price) AS fat_ult_sem
-    FROM 
-        individual_bills B
-    INNER JOIN 
-        table_sessions T 
-        ON T.id = B.session_id
-    INNER JOIN
-        restaurants R
-        ON R.id = T.restaurant_id
-    WHERE 
-        R.deleted_at is null 
-    AND
-        B.created_at BETWEEN NOW() - INTERVAL '7 days' AND NOW()
-    GROUP BY 
-        T.restaurant_id
-),
-fat2 AS (
-    SELECT 
-        T.restaurant_id,
-        SUM(B.total_service_price) AS fat_penult_sem
-    FROM 
-        individual_bills B
-    INNER JOIN 
-        table_sessions T 
-        ON T.id = B.session_id
-    INNER JOIN
-        restaurants R
-        ON R.id = T.restaurant_id
-    WHERE 
-        R.deleted_at is null 
-    AND
-        B.created_at BETWEEN NOW() - INTERVAL '14 days' AND NOW() - INTERVAL '7 days'
-    GROUP BY 
-        T.restaurant_id
-),
-fat3 AS (
-    SELECT 
-        T.restaurant_id,
-        SUM(B.total_service_price) AS fat_anti_penult_sem
-    FROM 
-        individual_bills B
-    INNER JOIN 
-        table_sessions T 
-        ON T.id = B.session_id
-    INNER JOIN
-        restaurants R
-        ON R.id = T.restaurant_id
-    WHERE 
-        R.deleted_at is null 
-    AND 
-        B.created_at BETWEEN NOW() - INTERVAL '21 days' AND NOW() - INTERVAL '7 days'
-    GROUP BY 
-        T.restaurant_id
-)
-SELECT 
-    COALESCE(fat1.restaurant_id, fat2.restaurant_id, fat3.restaurant_id) AS restaurant_id,
-    COALESCE(fat3.fat_anti_penult_sem, 0) AS fat_anti_penult_sem,
-    COALESCE(fat2.fat_penult_sem, 0) AS fat_penult_sem,
-    COALESCE(fat1.fat_ult_sem, 0) AS fat_ult_sem
-FROM 
-    fat1
-FULL OUTER JOIN 
-    fat2 ON fat1.restaurant_id = fat2.restaurant_id
-FULL OUTER JOIN 
-    fat3 ON COALESCE(fat1.restaurant_id, fat2.restaurant_id) = fat3.restaurant_id;
+     T.total_service_price > 0
+GROUP BY 
+    T.restaurant_id;
 
             """
 
         data_frame = self.extract.execute_query_table(query)
+        data_frame.fillna(0,inplace=True)
         def calculate_metrics(row):
-            faturamentos = [row['fat_anti_penult_sem'], row['fat_penult_sem'], row['fat_ult_sem']]
+            faturamentos = [row['soma_ult_sem'], row['soma_sem_anterior'], row['soma_2_sem_anteriores']]
             variance = np.var(faturamentos, ddof=0)  # Variância populacional
             std_dev = np.sqrt(variance)  # Desvio padrão
             return pd.Series({'variance': variance, 'std_dev': std_dev})
@@ -296,81 +189,55 @@ FULL OUTER JOIN
 
         return data_frame
 
-    def get_comandas_vigentes(self):
+    def get_comandas(self):
         query = """
-WITH comandas1 AS (
+WITH ultima_data AS (
     SELECT 
-        T.restaurant_id,
-        COUNT(T.*) AS comandas_ult_sem
+        restaurant_id,
+        MAX(created_at) AS last_created_at
     FROM 
-        table_sessions T 
-    INNER JOIN
-        restaurants R
-        ON R.id = T.restaurant_id
-    WHERE 
-        R.deleted_at is null 
-	AND
-		T.total_service_price > 0
-    AND
-        T.created_at BETWEEN NOW() - INTERVAL '7 days' AND NOW()
+        table_sessions
     GROUP BY 
-        T.restaurant_id
-),
-comandas2 AS (
-    SELECT 
-        T.restaurant_id,
-        COUNT(T.*) AS comandas_penul_sem
-    FROM 
-        table_sessions T 
-    INNER JOIN
-        restaurants R
-        ON R.id = T.restaurant_id
-    WHERE 
-        R.deleted_at is null 
-	AND
-		T.total_service_price > 0
-    AND
-        T.created_at BETWEEN NOW() - INTERVAL '14 days' AND NOW() - INTERVAL '7 days'
-    GROUP BY 
-        T.restaurant_id
-),
-comandas3 AS (
-   SELECT 
-        T.restaurant_id,
-        COUNT(T.*) AS comandas_anti_penul_sem
-    FROM 
-        table_sessions T 
-    INNER JOIN
-        restaurants R
-        ON R.id = T.restaurant_id
-    WHERE 
-        R.deleted_at is null 
-	AND
-		T.total_service_price > 0
-    AND
-        T.created_at BETWEEN NOW() - INTERVAL '21 days' AND NOW() - INTERVAL '14 days'
-    GROUP BY 
-        T.restaurant_id
+        restaurant_id
 )
 SELECT 
-    COALESCE(comandas1.restaurant_id, comandas2.restaurant_id, comandas3.restaurant_id) AS restaurant_id,
-    COALESCE(comandas3.comandas_anti_penul_sem, 0) AS comandas_anti_penul_sem,
-    COALESCE(comandas2.comandas_penul_sem, 0) AS comandas_penul_sem,
-    COALESCE(comandas1.comandas_ult_sem, 0) AS comandas_ult_sem
+    T.restaurant_id,
+    COUNT(CASE 
+              WHEN T.created_at BETWEEN U.last_created_at - INTERVAL '3 hours' - INTERVAL '7 days'
+                                  AND U.last_created_at - INTERVAL '3 hours' 
+              THEN 1 
+         END) AS comandas_ult_sem,
+    COUNT(CASE 
+              WHEN T.created_at BETWEEN U.last_created_at - INTERVAL '3 hours' - INTERVAL '14 days'
+                                  AND U.last_created_at - INTERVAL '3 hours' - INTERVAL '7 days' 
+              THEN 1 
+         END) AS comandas_sem_anterior,
+    COUNT(CASE 
+              WHEN T.created_at BETWEEN U.last_created_at - INTERVAL '3 hours' - INTERVAL '21 days'
+                                  AND U.last_created_at - INTERVAL '3 hours' - INTERVAL '14 days' 
+              THEN 1 
+         END) AS comandas_2_sem_anteriores
 FROM 
-    comandas1
-FULL OUTER JOIN 
-    comandas2 ON comandas1.restaurant_id = comandas2.restaurant_id
-FULL OUTER JOIN 
-    comandas3 ON COALESCE(comandas1.restaurant_id, comandas2.restaurant_id) = comandas3.restaurant_id;    
+    table_sessions T
+INNER JOIN
+    restaurants R
+    ON R.id = T.restaurant_id
+INNER JOIN
+    ultima_data U
+    ON U.restaurant_id = T.restaurant_id
+WHERE 
+
+     T.total_service_price > 0
+GROUP BY 
+    T.restaurant_id;
 
 
+"""
 
-                """
-        
         data_frame = self.extract.execute_query_table(query)
+        data_frame.fillna(0,inplace=True)
         def calculate_metrics(row):
-            comandas = [row['comandas_anti_penul_sem'], row['comandas_penul_sem'], row['comandas_ult_sem']]
+            comandas = [row['comandas_ult_sem'], row['comandas_sem_anterior'], row['comandas_2_sem_anteriores']]
             variance = np.var(comandas, ddof=0)  # Variância populacional
             std_dev = np.sqrt(variance)  # Desvio padrão
             return pd.Series({'variance': variance, 'std_dev': std_dev})
@@ -378,89 +245,7 @@ FULL OUTER JOIN
         data_frame = pd.concat([data_frame, metrics], axis=1)
 
         return data_frame
-
-    def get_comandas_apagados(self):
-
-        query="""
-WITH comandas1 AS (
-    SELECT 
-        T.restaurant_id,
-        COUNT(T.*) AS comandas_ult_sem
-    FROM 
-        table_sessions T 
-    INNER JOIN
-        restaurants R
-        ON R.id = T.restaurant_id
-    WHERE 
-        R.deleted_at is not null 
-	AND
-		T.total_service_price > 0
-    AND
-        T.created_at BETWEEN R.deleted_at - INTERVAL '7 days' AND R.deleted_at
-    GROUP BY 
-        T.restaurant_id
-),
-comandas2 AS (
-    SELECT 
-        T.restaurant_id,
-        COUNT(T.*) AS comandas_penul_sem
-    FROM 
-        table_sessions T 
-    INNER JOIN
-        restaurants R
-        ON R.id = T.restaurant_id
-    WHERE 
-        R.deleted_at is not null
-	AND
-		T.total_service_price > 0
-    AND
-        T.created_at BETWEEN R.deleted_at - INTERVAL '14 days' AND R.deleted_at - INTERVAL '7 days'
-    GROUP BY 
-        T.restaurant_id
-),
-comandas3 AS (
-   SELECT 
-        T.restaurant_id,
-        COUNT(T.*) AS comandas_anti_penul_sem
-    FROM 
-        table_sessions T 
-    INNER JOIN
-        restaurants R
-        ON R.id = T.restaurant_id
-    WHERE 
-        R.deleted_at is not null
-	AND
-		T.total_service_price > 0
-    AND
-        T.created_at BETWEEN R.deleted_at - INTERVAL '21 days' AND R.deleted_at - INTERVAL '14 days'
-    GROUP BY 
-        T.restaurant_id
-)
-SELECT 
-    COALESCE(comandas1.restaurant_id, comandas2.restaurant_id, comandas3.restaurant_id) AS restaurant_id,
-    COALESCE(comandas3.comandas_anti_penul_sem, 0) AS comandas_anti_penul_sem,
-    COALESCE(comandas2.comandas_penul_sem, 0) AS comandas_penul_sem,
-    COALESCE(comandas1.comandas_ult_sem, 0) AS comandas_ult_sem
-FROM 
-    comandas1
-FULL OUTER JOIN 
-    comandas2 ON comandas1.restaurant_id = comandas2.restaurant_id
-FULL OUTER JOIN 
-    comandas3 ON COALESCE(comandas1.restaurant_id, comandas2.restaurant_id) = comandas3.restaurant_id;
-
-
-        """
-
-        data_frame = self.extract.execute_query_table(query)
-        def calculate_metrics(row):
-            comandas = [row['comandas_anti_penul_sem'], row['comandas_penul_sem'], row['comandas_ult_sem']]
-            variance = np.var(comandas, ddof=0)  # Variância populacional
-            std_dev = np.sqrt(variance)  # Desvio padrão
-            return pd.Series({'variance': variance, 'std_dev': std_dev})
-        metrics = data_frame.apply(calculate_metrics, axis=1)
-        data_frame = pd.concat([data_frame, metrics], axis=1)
-
-        return data_frame
+    
     def get_ticket_medio(self):
 
         query = """
@@ -481,9 +266,44 @@ GROUP BY
 
 
 """
+
+
+
+
         data_frame = self.extract.execute_query_table(query)
 
         return data_frame
+    
+    def get_ultimo_mes_vigentes(self):
+
+        query = """
+select 
+	T.restaurant_id,
+	sum(B.total_service_price) 
+from 
+	individual_bills B
+inner join table_sessions T 
+	on T.id = B.session_id
+inner join restaurants R
+	on T.restaurant_id = R.id
+where
+	T.created_at between NOW() - Interval '30 days' and NOW()
+	and R.deleted_at is null
+group by 
+	T.restaurant_id
+
+"""
+        data_frame = self.extract.execute_query_table(query)
+
+        return data_frame
+    
+    def get_ultimo_mes_cancelados(self):
+
+        query = """
+
+
+
+    """
 
     def merge_inner_dataframe(self,d1,d2):
         df_merged = pd.merge(d1,d2,on='restaurant_id', how='inner')
@@ -505,6 +325,7 @@ GROUP BY
 class Load:
     def __init__(self):
         self.transform = Transform()
+        print('Dados sendo carregados')
     
     def load_restaraunts(self):
 
@@ -514,19 +335,11 @@ class Load:
 
         MAIN_FEATURES =  self.transform.merge_inner_dataframe(main_features,users)
     
-        faturamento_cancelados = self.transform.get_faturamento_cancelados()
-
-        faturamento_vigentes = self.transform.get_faturamento_vigentes()
-
-        comandas_cancelados = self.transform.get_comandas_apagados()
-
-        comandas_vigentes = self.transform.get_comandas_vigentes()
-
         TICKET_MEDIO = self.transform.get_ticket_medio()
         
-        FATURAMENTOS = self.transform.concat_dataframe(faturamento_vigentes,faturamento_cancelados)
+        FATURAMENTOS = self.transform.get_faturamento()
 
-        COMANDAS = self.transform.concat_dataframe(comandas_vigentes,comandas_cancelados)
+        COMANDAS = self.transform.get_comandas()
 
         PART1 = self.transform.merge_outer_dataframe(MAIN_FEATURES,FATURAMENTOS)
 

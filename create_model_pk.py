@@ -11,19 +11,22 @@ from sklearn.model_selection import train_test_split
 from sksurv.metrics import brier_score
 import matplotlib.pyplot as plt
 from lifelines.statistics import KaplanMeierFitter,logrank_test
-
+from pipeline.Pipeline import Load
 
 
 
 def create_model():
-    final_df = pd.read_csv('dataframe1-12-2024AT14:23.csv')
+    print('Iniciando Pipeline')
+    final_df = pd.read_csv('dataframe4-12-2024AT22:20.csv')
+    #load_restaurants = Load()
 
+    #final_df = load_restaurants.load_restaraunts()
 
         # Filtrar os dados onde is_deleted == 0
     restaurantes_nao_deletados = final_df[final_df['is_deleted'] == 0]
 
-    # Selecionar 200 amostras aleatórias
-    amostras_selecionadas = restaurantes_nao_deletados.sample(n=10, random_state=75)
+    # Selecionar 25 amostras aleatórias
+    amostras_selecionadas = final_df.sample(n=25, random_state=15)
 
     # Salvar essas amostras em um CSV, se necessário
     amostras_selecionadas.to_csv('amostras_teste.csv', index=False)
@@ -39,11 +42,12 @@ def create_model():
 
 
     features = [
-    'has_club','has_ifood',
-        'is_multistore_related', 'has_fiscal', 'only_delivery',
-        'mrr', 'average_table_session','sessions_count',
-        'total_users', 'fat_anti_penult_sem', 'fat_penult_sem', 'fat_ult_sem', 'variance_x',
-        'std_dev_x', 'comandas_anti_penul_sem', 'comandas_penul_sem', 'comandas_ult_sem',
+ 'has_club', 'has_ifood',
+       'is_multistore_related', 'has_fiscal', 'only_delivery',
+       'sessions_count', 'mrr', 'total_users', 'soma_ult_sem', 'soma_sem_anterior',
+       'soma_2_sem_anteriores', 'variance_x', 'std_dev_x', 'comandas_ult_sem',
+       'comandas_sem_anterior', 'comandas_2_sem_anteriores', 'variance_y',
+       'std_dev_y', 'average_table_session'
         
     ]
 
