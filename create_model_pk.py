@@ -26,7 +26,7 @@ def create_model():
     restaurantes_nao_deletados = final_df[final_df['is_deleted'] == 0]
 
     # Selecionar 25 amostras aleatórias
-    amostras_selecionadas = final_df.sample(n=25, random_state=15)
+    amostras_selecionadas = final_df.sample(n=10, random_state=185)
 
     # Salvar essas amostras em um CSV, se necessário
     amostras_selecionadas.to_csv('amostras_teste.csv', index=False)
@@ -154,69 +154,7 @@ def create_model():
 
 
 
-    clientes_clube = df[df['has_club']==1]
-    clientes_sem_clube = df[df['has_club']==0]
-    clientes_ifood = df[df['has_ifood'] == 1]
-    clientes_sem_ifood = df[df['has_ifood']==0]
 
-    results_clube = logrank_test(clientes_clube['survival_days'].astype(float),
-                        clientes_sem_clube['survival_days'].astype(float),
-                        event_observed_A=clientes_clube['is_deleted'],
-                        event_observed_B=clientes_sem_clube['is_deleted']
-                        
-                        )
-
-    results_ifood = logrank_test(clientes_ifood['survival_days'].astype(float),
-                        clientes_sem_ifood['survival_days'].astype(float),
-                        event_observed_A=clientes_ifood['is_deleted'],
-                        event_observed_B=clientes_sem_ifood['is_deleted'])
-
-
-
-    print(f'Estatistica Ifood: {results_ifood.test_statistic}')
-    print(f'P-value Ifood: {results_ifood.p_value}')
-
-    print(f'Estatistica Clube: {results_clube.test_statistic}')
-    print(f'P-value Clube: {results_clube.p_value}')
-
-
-
-    if results_clube.p_value < 0.05:
-        print("Há uma diferença estatisticamente significativa entre os grupos(CLUBE).")
-    else:
-        print("Não há diferença estatisticamente significativa entre os grupos(CLUBE).")
-
-
-    if results_ifood.p_value < 0.05:
-        print("Há uma diferença estatisticamente significativa entre os grupos(IFOOD).")
-    else:
-        print("Não há diferença estatisticamente significativa entre os grupos(IFOOD).")
-
-
-    kmf = KaplanMeierFitter()
-
-    plt.figure(figsize=(10, 6))
-
-
-    kmf.fit(clientes_clube['survival_days'], event_observed=clientes_clube['is_deleted'], label="Com Clube")
-    kmf.plot_survival_function(ci_show = False)
-
-
-    kmf.fit(clientes_sem_clube['survival_days'], event_observed=clientes_sem_clube['is_deleted'], label="Sem Clube")
-    kmf.plot_survival_function(ci_show = False)
-
-
-    kmf.fit(clientes_ifood['survival_days'], event_observed=clientes_ifood['is_deleted'], label="Com Ifood")
-    kmf.plot_survival_function(ci_show = False)
-
-    kmf.fit(clientes_sem_ifood['survival_days'], event_observed=clientes_sem_ifood['is_deleted'], label="Sem Ifood")
-    kmf.plot_survival_function(ci_show = False)
-
-    plt.title("Curvas de Sobrevivência por Grupo")
-    plt.xlabel("Dias de Sobrevivência")
-    plt.ylabel("Probabilidade de Sobrevivência")
-    plt.legend()
-    plt.savefig('log_rank_kmf.png')
 
 def main():
     create_model()

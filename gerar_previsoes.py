@@ -32,6 +32,10 @@ def gerar_previsoes():
     ]
     X = df[features]
 
+    survival_days = df[['restaurant_id', 'survival_days']]
+
+    survival_days = pd.DataFrame(survival_days)
+
     # Preprocessamento: imputação e escalonamento
     X_imputed = imputer.transform(X)
     X_scaled = scaler.transform(X_imputed)
@@ -71,39 +75,46 @@ def gerar_previsoes():
     print(f"Shape de restaurant_id: {df[['restaurant_id']].shape}")
     print(f"Shape de survival_values: {survival_values.shape}")
 
-    return resultados
+    return resultados,survival_days
 
 
-def generate_graphs(df):
+def generate_graphs(df,survival_days):
 
     X_axis = [col for col in df.columns if col.startswith('Day_')]
     X_axis_formmated = [float(col.replace('Day_','')) for col in df.columns if col.startswith('Day_')]
     print(X_axis_formmated)
 
-    for index, row in df.iterrows():
+    for index, row_results in df.iterrows():
+        survival = 0
+        for index_days , row_survival_days  in survival_days.iterrows():
+            if row_results[1] == row_survival_days[0]:
+                survival =row_survival_days[1]
+
         plt.figure(figsize=(10, 6))
     
-        Y_values = row[X_axis].values
+        Y_values = row_results[X_axis].values
         
-        print(Y_values)
-        plt.plot(X_axis_formmated, Y_values, label=f'Sobrevivência de {row[0]} ao longo do tempo')
-   
+        print(Y_values )
+        plt.plot(X_axis_formmated, Y_values, label=f'Sobrevivência de {row_results[0]} ao longo do tempo')
 
-        plt.title(f'Gráfico do restaurante {row[0]}')
+        plt.axvline(x=survival , color="red", linestyle="--", label=f"Dias de sobrevivência de {row_results[0]}")
+
+
+        plt.title(f'Gráfico do restaurante {row_results[0]}')
         plt.xlabel('Dias Corridos')
         plt.ylabel('Probilidade de sobrevivência')
         plt.legend()
         
         # Mostra o gráfico
         #plt.show()
-        plt.savefig(f'Restaurante {row[1]}.png')
+        plt.savefig(f'Restaurante {row_results[1]}.png')
         plt.close()
 
 
 def main():
 
-    resultados = gerar_previsoes()
-    generate_graphs(resultados)
+    resultados,survival_days = gerar_previsoes()
+    generate_graphs(resultados,survival_days)
 
 if __name__ == '__main__':
     main()
