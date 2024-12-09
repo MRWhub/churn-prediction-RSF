@@ -21,6 +21,23 @@ def gerar_previsoes():
     df = pd.read_csv('amostras_teste.csv')
 
     print(df.shape)
+
+    df.fillna(0)
+    for index,row in df.iterrows():
+        print(f'''Restaurante: {row[1]}\n
+              Tem Clube: {'Sim' if row[2] == 1 else 'Não' }\n 
+              Tem ifood: {'Sim' if row[3] == 1 else 'Não' }\n 
+              Tem/Pertence Multiloas: {'Sim' if row[4] == 1 else 'Não' }\n
+              Somente delivery: {'Sim' if row[6] == 1 else 'Não' }\n 
+              Tem Fiscal: {'Sim' if row[5] == 1 else 'Não' } \n
+              Comandas Totais: {row[8]}\n
+              Mrr: R${row[9]:.2f}\n
+              Dias de sobrevicência: {row[12]}\n
+              Foi Deletado: {'Sim' if row[13]== 1 else 'Não'}\n
+              Total de Usuários(Usuário Takeat): {row[14]}\n    
+              Valor médio Comanda: R$ {row[25]:.2f}
+                ''')
+
     # Seleção das features para o modelo
     features = [
  'has_club', 'has_ifood',
@@ -32,14 +49,14 @@ def gerar_previsoes():
     ]
     X = df[features]
 
-    survival_days = df[['restaurant_id', 'survival_days']]
+    survival_days = df[['restaurant_id', 'survival_days','is_deleted']]
 
     survival_days = pd.DataFrame(survival_days)
 
     # Preprocessamento: imputação e escalonamento
     X_imputed = imputer.transform(X)
     X_scaled = scaler.transform(X_imputed)
-    X_scaled_df = pd.DataFrame(X_scaled)  # Convert to a DataFrame
+
 
 
     # Gerar previsões de sobrevivência
@@ -69,6 +86,8 @@ def gerar_previsoes():
     # Salvar os resultados em um arquivo Excel
     resultados.to_excel('previsoes_sobrevivencia.xlsx', index=False)
 
+    df.to_excel('amostras_teste.xlsx',index=False)
+
     print("Previsões salvas no arquivo 'previsoes_sobrevivencia.xlsx'.")
 
     print(f"Shape de X_scaled: {X_scaled.shape}")
@@ -82,32 +101,44 @@ def generate_graphs(df,survival_days):
 
     X_axis = [col for col in df.columns if col.startswith('Day_')]
     X_axis_formmated = [float(col.replace('Day_','')) for col in df.columns if col.startswith('Day_')]
-    print(X_axis_formmated)
 
     for index, row_results in df.iterrows():
         survival = 0
+        is_deleted = ''
         for index_days , row_survival_days  in survival_days.iterrows():
-            if row_results[1] == row_survival_days[0]:
-                survival =row_survival_days[1]
+            if row_results.iloc[1] == row_survival_days.iloc[0]:
+                survival = row_survival_days.iloc[1]
+                is_deleted = 'Sim' if int(row_survival_days.iloc[2]) == 1 else 'Não'
+                print(int(row_survival_days.iloc[2]))
 
         plt.figure(figsize=(10, 6))
     
         Y_values = row_results[X_axis].values
         
-        print(Y_values )
-        plt.plot(X_axis_formmated, Y_values, label=f'Sobrevivência de {row_results[0]} ao longo do tempo')
+        #print(Y_values )
+        plt.plot(
+    X_axis_formmated,
+    Y_values,
+    label=f'''Sobrevivência de {row_results.iloc[0]} ao longo do tempo
+              Deletado: {is_deleted}''',
+    linestyle='-',  # Linha contínua
+    alpha=0.9,
+    linewidth=2  # Aumentar espessura para visualização mais suave
+)
 
-        plt.axvline(x=survival , color="red", linestyle="--", label=f"Dias de sobrevivência de {row_results[0]}")
+        plt.axvline(x=survival , color="red", linestyle="--", label=f"Dias de sobrevivência de {row_results.iloc[0]}")
+
+        
 
 
-        plt.title(f'Gráfico do restaurante {row_results[0]}')
+        plt.title(f'Gráfico do restaurante {row_results.iloc[0]}')
         plt.xlabel('Dias Corridos')
         plt.ylabel('Probilidade de sobrevivência')
         plt.legend()
         
         # Mostra o gráfico
         #plt.show()
-        plt.savefig(f'Restaurante {row_results[1]}.png')
+        plt.savefig(f'Restaurante {row_results.iloc[1]}.png')
         plt.close()
 
 

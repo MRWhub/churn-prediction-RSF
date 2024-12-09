@@ -12,23 +12,25 @@ from sksurv.metrics import brier_score
 import matplotlib.pyplot as plt
 from lifelines.statistics import KaplanMeierFitter,logrank_test
 from pipeline.Pipeline import Load
+from sklearn.model_selection import KFold
+
 
 
 
 def create_model():
-    print('Iniciando Pipeline')
-    final_df = pd.read_csv('dataframe4-12-2024AT22:20.csv')
-    #load_restaurants = Load()
+    print('Iniciando Pipeline...')
+    
+    load_restaurants = Load()
 
-    #final_df = load_restaurants.load_restaraunts()
+    final_df = load_restaurants.load_restaraunts()
 
-        # Filtrar os dados onde is_deleted == 0
-    restaurantes_nao_deletados = final_df[final_df['is_deleted'] == 0]
 
-    # Selecionar 25 amostras aleatórias
-    amostras_selecionadas = final_df.sample(n=10, random_state=185)
+    
 
-    # Salvar essas amostras em um CSV, se necessário
+ 
+    amostras_selecionadas = final_df.sample(n=25, random_state=185)
+
+     
     amostras_selecionadas.to_csv('amostras_teste.csv', index=False)
 
     print(f"Número de amostras selecionadas: {len(amostras_selecionadas)}")
@@ -42,7 +44,7 @@ def create_model():
 
 
     features = [
- 'has_club', 'has_ifood',
+  'has_club', 'has_ifood',
        'is_multistore_related', 'has_fiscal', 'only_delivery',
        'sessions_count', 'mrr', 'total_users', 'soma_ult_sem', 'soma_sem_anterior',
        'soma_2_sem_anteriores', 'variance_x', 'std_dev_x', 'comandas_ult_sem',
@@ -61,36 +63,34 @@ def create_model():
     X_scaled=scaler.fit_transform(X_imputed)
 
 
-
+    rsf = RandomSurvivalForest(n_estimators=100, min_samples_split=20,max_depth=10, random_state=42)
 
     y = Surv.from_arrays(event=y_event, time=y_time)
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X_scaled,  
-        y,        
-        test_size=0.5,  
-        random_state=42,  
-        stratify=y_event 
-    )
 
 
 
+    kf = KFold(n_splits=5, shuffle=True, random_state=42)
+    c_index_scores = []
+    i = 0
+    for train_idx, test_idx in kf.split(X_scaled):
 
-    
+        X_train, X_test = X_scaled[train_idx], X_scaled[test_idx]
+        y_train, y_test = y[train_idx], y[test_idx]
+        
+
+        rsf.fit(X_train, y_train)
+        
+
+        surv_preds = rsf.predict_survival_function(X_test)
+        c_index = rsf.score(X_test, y_test)
+        print(f'C-Index no Kluster {i+1}: {c_index:.4f}')
+        c_index_scores.append(c_index)
+        i+=1
+
+    print(f"C-Index médio: {np.mean(c_index_scores):.4f}")
 
 
-    rsf = RandomSurvivalForest(n_estimators=100, min_samples_split=20,max_depth=10, random_state=42)
-
-
-    rsf.fit(X_train, y_train)
-
-    
-
-    c_index_train = rsf.score(X_train, y_train)  # Avaliar no conjunto de treino
-    c_index_test = rsf.score(X_test, y_test)    # Avaliar no conjunto de teste
-
-    print(f"C-Index no conjunto de treino: {c_index_train}")
-    print(f"C-Index no conjunto de teste: {c_index_test}")
 
     joblib.dump(rsf,'modelo_previsao_churn.pk')
     joblib.dump(scaler,'scaler.pk')
@@ -100,6 +100,7 @@ def create_model():
 
     surv_funcs = rsf.predict_survival_function(X_test)
 
+    print("Calculando Brier-Score ...")
 
     y_test_structured = np.array(
 

@@ -77,7 +77,7 @@ class Transform:
 
         self.ids_to_ignore = [2,12415,1,1361,61552,2877,2811,1493,1392,25383,902,12414,1161,7497,575,19641,61518,331,10,
                               52542,1362,227,430,3669,5979,8652,997,55776,28257,332,6573,
-                              236,411,18354,38088,3473,8586,3,4,368,369,370,371,372,373,374,375,377,378,474]
+                              236,411,18354,38088,3473,8586,3,4,368,369,370,371,372,373,374,375,377,378,474,37231]
     def get_main_restaurants_features(self):
         
         query = """
@@ -249,20 +249,30 @@ GROUP BY
     def get_ticket_medio(self):
 
         query = """
+WITH max_dates AS (
+    SELECT 
+        restaurant_id,
+        MAX(created_at) AS max_created_at
+    FROM 
+        table_sessions
+    GROUP BY 
+        restaurant_id
+)
 SELECT 
     ts.restaurant_id,
-    AVG(ts.total_service_price) AS average_table_session
+    COALESCE(AVG(ts.total_service_price), 0) AS average_table_session
 FROM 
     table_sessions ts
 JOIN 
-    restaurants r
+    max_dates md
 ON 
-    ts.restaurant_id = r.id
+    ts.restaurant_id = md.restaurant_id
 WHERE
-	 total_service_price IS NOT NULL AND total_service_price >= 0 AND total_service_price != 'NaN' AND ts.created_at between NOW() -  interval '1 year' and NOW()
+    ts.created_at BETWEEN md.max_created_at - INTERVAL '1 year' AND md.max_created_at
+    AND total_service_price IS NOT NULL 
+    AND total_service_price >= 0
 GROUP BY 
-    ts.restaurant_id, r.name;
-
+    ts.restaurant_id;
 
 
 """
@@ -325,7 +335,7 @@ group by
 class Load:
     def __init__(self):
         self.transform = Transform()
-        print('Dados sendo carregados')
+        print('Dados sendo carregados...')
     
     def load_restaraunts(self):
 
